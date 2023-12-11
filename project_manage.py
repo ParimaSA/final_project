@@ -1,38 +1,69 @@
 # import database module
+import csv
+import random
+import sys
+
 from database import read_csv, Database, Table
 from random import randint
 
-# define a funcion called initializing
 
 my_DB = Database()
 
 
 def initializing():
-    persons = read_csv('persons.csv')
-    logins = read_csv('login.csv')
-    persons_table = Table('persons', persons)
-    login_table = Table('login', logins)
-    student_table = Table('student', [Student(person['ID'], person['username']) for person in login_table.table if person['role'] == 'student'])
-    advisor_table = Table('faculty', [Faculty(person['ID'], person['username']) for person in login_table.table if person['role'] == 'faculty'])
-    request_member_table = Table('pending_member', [])
-    request_advisor_table = Table('pending_advisor', [])
-    all_project = Table('project', [])
+    persons_table = Table('persons', read_csv('persons.csv'))
+    login_table = Table('login', read_csv('login.csv'))
+    request_member_table = Table('pending_member', read_csv('Pending_member.csv'))
+    request_advisor_table = Table('pending_advisor', read_csv('Pending_advisor.csv'))
+    request_sign_up = Table('sign_up', read_csv('Sign_up.csv'))
+    send_proposal = Table('send_proposal', read_csv('Send_proposal.csv'))
+    send_project = Table('send_project', read_csv('Send_project.csv'))
+
+    project = read_csv('Project.csv')  # create object in class Project using data from project.csv file
+    project_table = []
+    for row in project:
+        v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13 = row.values()
+        project_table.append(Project(v1, v2, v4, v3, v5, v6, v7, v8, v9, v10, v11, v12, v13))
+    project_table = Table('project', project_table)
+
+    student = read_csv('Student.csv')  # create object in class Student using data from Student.csv file
+    student_table = []
+    for row in student:
+        this_pro = project_table.filter(lambda x: row['id'] in [x.Lead, x.Member1, x.Member2])
+        if this_pro.table:
+            my_pro = this_pro.table[0]  # modify data for .project if this student involve in some project
+        else:
+            my_pro = None
+        student_table.append(Student(row['id'], row['name'], my_pro, row['num_answer']))
+    student_table = Table('student', student_table)
+
+    faculty = read_csv('Faculty.csv')  # create object in class Faculty using data from Faculty.csv file
+    faculty_table = []
+    for row in faculty:
+        v1, v2, v3, v4, v5, v6 = row.values()
+        faculty_table.append(Faculty(v1, v2, v3, v4, v5, v6))
+    faculty_table = Table('faculty', faculty_table)
+
+    admin = read_csv('Admin.csv')
+    admin_table = []
+    for row in admin:
+        v1, v2, v3 = row.values()
+        admin_table.append(Admin(v1, v2, v3))
+    admin_table = Table('admin', admin_table)
+
+    # insert all the table into the database
     my_DB.insert(persons_table)
     my_DB.insert(login_table)
     my_DB.insert(student_table)
-    my_DB.insert(advisor_table)
+    my_DB.insert(faculty_table)
+    my_DB.insert(admin_table)
     my_DB.insert(request_member_table)
     my_DB.insert(request_advisor_table)
-    my_DB.insert(all_project)
+    my_DB.insert(request_sign_up)
+    my_DB.insert(project_table)
+    my_DB.insert(send_proposal)
+    my_DB.insert(send_project)
 
-
-# here are things to do in this function:
-# create an object to read all csv files that will serve as a persistent state for this program
-# create all the corresponding tables for those csv files
-# see the guide how many tables are needed
-# add all these tables to the database
-
-# define a function called login
 
 def login():
     print()
@@ -40,41 +71,140 @@ def login():
     username = input('Enter Username: ')
     password = input('Enter Password: ')
     my_login = my_DB.search('login')
-    this_data = my_login.filter(lambda x: x['username'] == username and x['password'] == password)
-    this_data = this_data.table
-    if not this_data:
-        print('Invalid username or password')
+    check1 = my_login.filter(lambda x: x['username'] == username and x['password'] == password)
+    check2 = my_login.filter(lambda x: x['username'] == username and x['ID'] == password and x['role'] == 'new')
+    check = check1.table + check2.table  # user match password / new account
+    if not check:
+        cor_user = my_login.filter(lambda x: x['username'] == username)
+        incor_pass_new = my_login.filter(lambda x: x['username'] == username and x['role'] in ['waiting', 'new'])
+        if not cor_user.table:  # username in database
+            check = get_option('Sign Up(y/n)? ', ['y', 'n'])
+            if check == 'y':
+                create_new_user()
+            run_login()
+        elif incor_pass_new.table:
+            print('Incorrect Password')
+        else:  # have username in login table but incorrect password, not a signing up
+            check = get_option('Forget Password(y/n)? ', ['y', 'n'])
+            if check == 'y':
+                change_password()
+            run_login()
+    else:
+        return [check[0]['ID'], check[0]['role']]
+
+
+def waiting_room(user_id):
+    print()
+    sign = my_DB.search('sign_up')
+    logins = my_DB.search('login')
+    persons = my_DB.search('persons')
+    check = sign.filter(lambda x: x['ID'] == user_id).table
+    this_role = persons.filter(lambda x: x['ID'] == user_id).table[0]['type']
+    account = logins.filter(lambda x: x['ID'] == user_id).table[0]
+    if not check:
+        logins.update(lambda x: x['ID'] == user_id, 'role', this_role)
+        print('Admin has created your account: ')
+        print(f'\tYour Username: {account["username"]}')
+        print(f'\tYour Password: {account["password"]}')
+        input('Go to Log in Menu(enter): ')
+    else:
+        check = check[0]
+        if check['status'] == 'waiting':
+            print('Waiting for admin to approve the request.')
+            print('Please log in again later.')
+            input('Back to Log in Menu(enter): ')
+        else:
+            logins.update(lambda x: x['ID'] == user_id, 'role', this_role)
+            print('Your account is created: ')
+            print(f'\tYour Username: {account["username"]}')
+            print(f'\tYour Password: {account["password"]}')
+            input('Go to Log in Menu(enter): ')
+
+
+def create_new_user():
+    print()
+    print('Create New Account')
+    new_info = get_info()
+    if new_info is None:
+        print('This ID has already taken, can not create new account.')
+    else:
+        user_id, first, last, role = new_info
+        sign_table = my_DB.search('sign_up').table
+        login_table = my_DB.search('login').table
+        admin = my_DB.search('admin').table[0]
+        admin.num_request += 1
+        sign_table.append({'ID': user_id, 'first': first, 'last': last, 'role': role, 'status': 'waiting'})
+        login_table.append({'ID': user_id, 'username': first + '.' + last[0], 'password': user_id, 'role': 'waiting'})
+        print()
+        print('Successfully, send the request to admin.')
+        print(f'\tYour Username: {first}.{last[0]}')
+        print(f'\tYour Password: {user_id}')
+        print('We are in the process to get your account.')
+        print('Please log in again to get your username and password, after admin approve your request')
+    input('Back to Log in Menu(enter): ')
+
+
+def change_password():
+    print()
+    print('Change your password')
+    user_id = input('ID: ')
+    first = input('First Name: ').capitalize()
+    last = input('Last Name: ').capitalize()
+
+    persons = my_DB.search('persons')
+    person_fil = persons.filter(lambda x: x['first'] == first and x['last'] == last and x['ID'] == user_id)
+    if not person_fil:
+        print('Incorrect Information')
+        input('Back to Log in Menu(enter): ')
+    else:
+        logins = my_DB.search('login')
+        all_pass = [row['password'] for row in logins.table]
+        new_password = str(random.randint(1000, 9000))
+        while new_password in all_pass:
+            new_password = str(random.randint(1000, 9000))
+        logins.update(lambda x: x['ID'] == user_id, 'password', new_password)
+        print(logins.table)
+        print('Successfully, change your password.')
+        print(f'\tYour Username: {first}.{last[0]}')
+        print(f'\tYour Password: {new_password}')
+        input('Back to Log in Menu(enter): ')
+
+
+def get_info():
+    persons = my_DB.search('persons')
+    new_id = input('ID: ')
+    all_id = [row['ID'] for row in persons.table]
+    if new_id in all_id:
         return None
-    return [this_data[0]['ID'], this_data[0]['role']]
-
-
-# here are things to do in this function:
-# add code that performs a login task
-# ask a user for a username and password
-# returns [ID, role] if valid, otherwise returning None
+    new_first = input('First: ').capitalize()
+    new_last = input('Last: ').capitalize()
+    new_type = get_option('Type(student/faculty): ', ['student', 'faculty'])
+    return [new_id, new_first, new_last, new_type]
 
 
 def get_option(sentence, list_option):
     option = input(sentence)
     while option not in list_option:
-        print('Invalid input, try again.')
+        print('Invalid Input, try again.')
         option = input(sentence)
     return option
 
 
 class Project:
-    def __init__(self, title, lead):
-        self.ProjectID = str(randint(66000, 66999))
+    def __init__(self, pro_id, title, lead, key=None, mem1=None, mem2=None, adv=None, status='Processing', n_r=0, n_m=0, n_a=0, n_s=0, n_ap=0):
+        self.ProjectID = pro_id
         self.Title = title
-        self.Keyword = None
+        self.Keyword = key
         self.Lead = lead
-        self.Member1 = None
-        self.Member2 = None
-        self.Advisor = None
-        self.Status = 'Processing'
-        self.num_member_requesting = 0
-        self.num_member = 0
-        self.num_advisor = 0
+        self.Member1 = mem1
+        self.Member2 = mem2
+        self.Advisor = adv
+        self.Status = status
+        self.num_member_requesting = int(n_r)
+        self.num_member = int(n_m)
+        self.num_advisor = int(n_a)
+        self.num_submit = int(n_s)
+        self.num_approve = int(n_ap)
 
     def get_table(self):
         return {'ProjectID': self.ProjectID,
@@ -84,7 +214,12 @@ class Project:
                 'Member1': self.Member1,
                 'Member2': self.Member2,
                 'Advisor': self.Advisor,
-                'Status': self.Status}
+                'Status': self.Status,
+                'num_member_requesting': self.num_member_requesting,
+                'num_member': self.num_member,
+                'num_advisor': self.num_advisor,
+                'num_submit': self.num_submit,
+                'num_approve': self.num_approve}
 
     @staticmethod
     def get_full_name(check_id):
@@ -112,45 +247,336 @@ class Project:
         option = get_option('Which detail you want to change title/keyword(t/k)? ', ['t', 'k'])
         if option == 't':
             new_title = input('New title: ')
-            check = get_option(f'You want to change your title to {new_title}(y/n)? ', ['y', 'n'])
+            check = get_option(f"You want to change your title to '{new_title}'(y/n)? ", ['y', 'n'])
             if check == 'y':
                 self.Title = new_title
-                print(f'Your project title has changed to {new_title}')
+                print(f"Your project title has changed to '{new_title}'.")
         else:
             new_keyword = input('New Keyword: ')
-            check = get_option(f'You want to change your keyword to {new_keyword}(y/n)? ', ['y', 'n'])
+            check = get_option(f"You want to change your keyword to '{new_keyword}'(y/n)? ", ['y', 'n'])
             if check == 'y':
                 self.Keyword = new_keyword
-                print(f'Your project keyword has changed to {new_keyword}')
-        input('Back to project detail(enter): ')
-        self.check_project_detail()
+                print(f"Your project keyword has changed to '{new_keyword}'.")
+
+
+class Admin:
+    def __init__(self, user_id, name, num_request=0):
+        self.id = user_id
+        self.name = name
+        self.num_request = int(num_request)
+
+    def admin_menu(self):
+        print()
+        print('Admin Menu')
+        print('******************************')
+        print('1.Edit Database')
+        if self.num_request == 0:
+            print('2.Check Request: No request')
+        else:
+            print(f'2.Check Request: {self.num_request} request!')
+        print('3.Exit')
+        print('0.Log Out')
+        print('******************************')
+        option = get_option('Your Option: ', [str(n) for n in range(0, 4)])
+        if option == '1':
+            self.edit_database()
+        elif option == '2':
+            self.admin_check_request()
+        elif option == '3':
+            exit()
+        elif option == '0':
+            run_login()
+        self.admin_menu()
+
+    def edit_database(self):
+        print()
+        persons = my_DB.search('persons')
+        logins = my_DB.search('login')
+        merge = persons.join(logins, 'ID')
+        print(f'ID          First          Last          Type         Role       ')
+        print(f'----------  -------------  ------------  -----------  -----------')
+        for row in merge.table:
+            print(f'{row["ID"]:<12}{row["first"]:<15}{row["last"]:<15}{row["type"]:<12}{row["role"]}')
+        print(f'----------  -------------  ------------  -----------  -----------')
+        print()
+        print('Edit Database')
+        print('1.Add Data')
+        print('2.Delete Data')
+        print('3.Change Data')
+        print('0.Admin Menu')
+        option = get_option('Your Option: ', [str(n) for n in range(0, 4)])
+        if option == '1':
+            new_info = get_info()
+            if new_info is None:
+                print('This ID already in the database.')
+            else:
+                self.add_database(new_info)
+                this_login = [row for row in my_DB.search('login').table if row['ID'] == new_info[0]][0]
+                this_login['role'] = 'new'
+                print('Successfully add this data to the database.')
+                input('Back to Edit Database Menu(enter): ')
+        elif option == '2':
+            self.delete_database()
+        elif option == '3':
+            self.change_database()
+        else:
+            self.admin_menu()
+        self.edit_database()
+
+    def add_database(self, new_info):
+        persons = my_DB.search('persons')
+        logins = my_DB.search('login')
+        student = my_DB.search('student')
+        faculty = my_DB.search('faculty')
+
+        new_id, new_first, new_last, new_type = new_info
+        new_username = new_first + '.' + new_last[0]
+        all_password = [row['password'] for row in logins.table]
+        new_password = str(random.randint(1000, 9999))
+
+        while new_password in all_password:
+            new_password = str(random.randint(1000, 9999))
+
+        person_data = {'ID': new_id, 'first': new_first, 'last': new_last, 'type': new_type}
+        login_data = {'ID': new_id, 'username': new_username, 'password': new_password, 'role': new_type}
+
+        if new_type == 'student':
+            persons.table.insert(len(student.table) + 1, person_data)
+            logins.table.insert(len(student.table) + 1, login_data)
+            student.table.append(Student(new_id, new_username))
+        else:
+            persons.table.append(person_data)
+            logins.table.append(login_data)
+            faculty.table.append(Faculty(new_id, new_username))
+
+    def delete_database(self):
+        logins = my_DB.search('login')
+        persons = my_DB.search('persons')
+        user_id = input('AccountID you want to delete: ')
+        all_id = [row['ID'] for row in logins.table]
+        this_id = [row for row in logins.table if row['ID'] == user_id][0]
+        if user_id not in all_id:
+            print('Invalid ID')
+        else:
+            if this_id['role'] not in ['student', 'faculty']:
+                print('Can not delete this data, this person involve in some project.')
+            else:
+                option = get_option('Are you sure to delete this account(y/n)? ', ['y', 'n'])
+                if option == 'y':
+                    pending_member = my_DB.search('pending_member')
+                    pending_advisor = my_DB.search('pending_advisor')
+                    if this_id['role'] == 'student':
+                        pass
+                    for i in range(len(persons.table)):
+                        if persons.table[i]['ID'] == user_id:
+                            del persons.table[i]
+                            del logins.table[i]
+                            for row in my_DB.search(persons.table[i]['type']).table:
+                                if row.id == user_id:
+                                    del row
+                                    break
+                            break
+                    pending_member.update(lambda x: x['to_be_member'] == user_id, 'status', 'Deny')
+                    pending_advisor.update(lambda x: x['to_be_advisor'] == user_id, 'status', 'Deny')
+                    print('Successfully delete this data.')
+                    input('Back to Edit Database Menu(enter): ')
+
+    def change_database(self):
+        print()
+        logins = my_DB.search('login')
+        user_id = input('AccountID you want to change: ')
+        all_id = [row['ID'] for row in logins.table]
+        if user_id not in all_id:
+            print('Invalid ID')
+        else:
+            print('There is 3 details you can change')
+            print('1.ID')
+            print('2.First Name')
+            print('3.Last Name')
+            print('0.None')
+            option = get_option('Which detail you want to change? ', [str(n) for n in range(0, 4)])
+            user_id, username, password, role = logins.filter(lambda x: x['ID'] == user_id).table[0].values()
+            this_key = None
+            new_val = None
+            if option == '0':
+                return
+            elif option == '1':
+                this_key = 'id'
+                new_val = input('New ID: ')
+                while new_val in all_id:
+                    print('This ID has already taken.')
+                    new_val = input('New ID: ')
+            elif option == '2':
+                this_key = 'first'
+                new_val = input('New First Name: ').capitalize()
+                username = new_val + '.' + username[-1]
+            elif option == '3':
+                this_key = 'last'
+                new_val = input('New Last Name: ').capitalize()
+                username = username[:-2] + '.' + new_val[0]
+            check = get_option('Are you sure you want to change this data(y/n)? ', ['y', 'n'])
+            if check == 'y':
+                logins.update(lambda x: x['ID'] == user_id, 'username', username)
+                self.update_all(user_id, this_key, new_val)
+
+    def update_all(self, user_id, key, new_value):
+        if key == 'id':
+            this_id = [row for row in my_DB.search('login').table if row['ID'] == user_id][0]
+            my_DB.search('persons').update(lambda x: x['ID'] == user_id, key.upper(), new_value)
+            my_DB.search('login').update(lambda x: x['ID'] == user_id, key.upper(), new_value)
+            my_DB.search('project').update(lambda x: x.Lead == user_id, key, new_value)
+            my_DB.search('project').update(lambda x: x.Member1 == user_id, key, new_value)
+            my_DB.search('project').update(lambda x: x.Member2 == user_id, key, new_value)
+            my_DB.search('project').update(lambda x: x.Advisor == user_id, key, new_value)
+            my_DB.search('pending_member').update(lambda x: x['to_be_member'] == user_id, 'to_be_member', new_value)
+            my_DB.search('pending_advisor').update(lambda x: x['to_be_advisor'] == user_id, 'to_be_advisor', new_value)
+            my_DB.search('sign_up').update(lambda x: x['ID'] == user_id, key.upper(), new_value)
+            if this_id['role'] == 'admin':
+                my_DB.search('admin').table[0].id = new_value
+            elif this_id['role'] == 'student':
+                search_student(user_id).id = new_value
+            else:
+                search_faculty(user_id).id = new_value
+        else:
+            my_DB.search('persons').update(lambda x: x['ID'] == user_id, key, new_value)
+            my_DB.search('sign_up').update(lambda x: x['ID'] == user_id, key, new_value)
+
+        print('Successfully, change the data.')
+        input('Back to Edit Database Menu(enter): ')
+        self.edit_database()
+
+    def admin_check_request(self):
+        print()
+        print('Check Request Menu')
+        print('1.Check Cancel Request')
+        print('2.Check Sign Up Request')
+        print('0.Admin Menu')
+        option = get_option('Your Option: ', [str(n) for n in range(0, 4)])
+        if option == '1':
+            self.check_cancel()
+        elif option == '2':
+            self.check_sign_up()
+        else:
+            self.admin_menu()
+        self.admin_check_request()
+
+    def answer_sign_up(self, all_sign):
+        id_request = input('AccountID you want to answer: ')
+        all_id = [row["ID"] for row in all_sign]
+        logins = my_DB.search('login')
+        if id_request not in all_id:
+            print('Invalid ID')
+        else:
+            this_id = [row for row in all_sign if row['ID'] == id_request][0]
+            option = get_option('Accept or Deny this request(a/d): ', ['a', 'd'])
+            for i in range(len(logins.table)):
+                if logins.table[i]['ID'] == id_request:
+                    del logins.table[i]
+                    break
+            if option == 'a':
+                new_id, new_first, new_last, new_type, status = this_id.values()
+                self.add_database([new_id, new_first, new_last, new_type])
+                this_login = [row for row in logins.table if row['ID'] == id_request][0]
+                this_id['status'] = 'accepted'
+                this_login['role'] = 'waiting'
+                print(f'Successfully accept this sign up (id:{id_request}).')
+            else:
+                this_id['status'] = 'deny'
+                print(f'Successfully deny this sign up (id:{id_request}).')
+            self.num_request -= 1
+        self.check_sign_up()
+
+    def check_sign_up(self):
+        print()
+        print('SIGN UP REQUEST')
+        sign = my_DB.search('sign_up')
+        all_sign = [row for row in sign.table if row['status'] == 'waiting']
+        if not all_sign:
+            print('There is no requesting.')
+            input('Back to Menu(enter): ')
+        else:
+            print('ID             Name                     Type        ')
+            print('-------------  -----------------------  ------------')
+            for row in all_sign:
+                print(f'{row["ID"]:<15}{row["first"] + " " + row["last"]:<25}{row["role"]:<12}')
+            print('-------------  -----------------------  ------------')
+            print()
+            option = get_option('Do you want to answer any sign up(y/n)? ', ['y', 'n'])
+            if option == 'y':
+                self.answer_sign_up(all_sign)
+
+    def cancel_project(self, all_pro):
+        id_request = input('ProjectID you want to approve: ')
+        all_pro_id = [row.ProjectID for row in all_pro]
+        if id_request not in all_pro_id:
+            print('Invalid ProjectID')
+        else:
+            lead_id = None
+            project = my_DB.search('project').table
+            for row in project:
+                if row.ProjectID == id_request:
+                    lead_id = row.Lead
+                    row.Status = 'Cancel'
+            lead = search_student(lead_id)
+            lead.project = None
+            self.num_request -= 1
+            print(f'Successfully cancel this project (id:{id_request}).')
+        self.check_cancel()
+
+    def check_cancel(self):
+        print()
+        print('CANCEL PROJECT REQUEST')
+        all_project = my_DB.search('project')
+        project_cancel = [row for row in all_project.table if row.Status == 'request_cancel']
+        if not project_cancel:
+            print('There is no requesting.')
+            input('Back to Menu(enter): ')
+        else:
+            print('ProjectID           Title               Leader         ')
+            print('------------------  ------------------  ----------------------')
+            for pro in project_cancel:
+                print(f'{pro.ProjectID:<20}{pro.Title:<20}{pro.get_full_name(pro.Lead)}')
+            print('------------------  ------------------  ----------------------')
+            option = get_option('Do you want to approve any cancel(y/n)? ', ['y', 'n'])
+            if option == 'y':
+                self.cancel_project(project_cancel)
 
 
 class Student:
-    def __init__(self, get_id, get_name):
+    def __init__(self, get_id, get_name, project=None, num_answer=0):
         self.id = get_id
         self.name = get_name
-        self.project = None
-        self.num_answer = 0
+        self.project = project
+        self.num_answer = int(num_answer)
 
     @staticmethod
     def check_available(role):
         logins = my_DB.search('login')
-        logins = logins.filter(lambda x: x['role'] == role)
-        for i in logins.table:
-            print(f'{i["ID"]}\t\t\t\t{i["username"]}')
+        if role == 'student':
+            logins = logins.filter(lambda x: x['role'] == role)
+            for i in logins.table:
+                print(f'{i["ID"]:<18}{i["username"]}')
+        else:
+            logins = logins.filter(lambda x: x['role'] in ['faculty', 'advisor'])
+            for i in logins.table:
+                faculty = search_faculty(i['ID'])
+                if faculty.num_project < 3:
+                    print(f'{i["ID"]:<18}{i["username"]}')
 
+    # ALL Student Method
     def student_menu(self):
         print()
         print('Student Menu')
+        print('******************************')
         logins = my_DB.search('login')
         pending = my_DB.search('pending_member')
         if self.num_answer == 0:
             print(f'1.Check Request: No request')
         else:
             print(f'1.Check Request: {self.num_answer} request!')
-        print('2.Create your project')
+        print('2.Create Project')
         print('0.Log Out')
+        print('******************************')
         option = get_option('Your Option: ', [str(n) for n in range(0, 3)])
         if option == '1':
             self.student_check_request()
@@ -158,92 +584,149 @@ class Student:
             check = get_option('Are you sure to create your project(y/n)? ', ['y', 'n'])
             if check == 'n':
                 self.student_menu()
-            title = input('Your project title: ')
+            title = input('Your project title: ').capitalize()
+            all_request = pending.filter(lambda x: x['to_be_member'] == self.id and x['status'] == 'waiting')
+            for pro in all_request.table:
+                lead = search_student(pro['project'].Lead)
+                lead.num_answer += 1
+                pro['project'].num_member_requesting -= 1
             pending.update(lambda x: x['to_be_member'] == self.id, 'status', 'Deny')  # deny all project
             logins.update(lambda x: x['ID'] == self.id, 'role', 'lead')  # change role to lead
             self.num_answer = 0
-            self.project = Project(title, self.id)
+            self.project = Project(str(randint(66000, 66999)), title, self.id)
             project_table = my_DB.search('project')
-            project_table.table.append(project_table)
+            project_table.table.append(self.project)
+            #### for test
+            # self.project.num_member = 2
+            # self.project.Advisor = '8466074'
+            # self.project.num_submit = 2
+            #### for test
             print('Creating your project...')
             input('Go to your project menu(enter): ')
             self.lead_menu()
+        elif option == '0':
+            run_login()
+        self.student_menu()
+
+    def student_check_request(self):
+        if self.num_answer == 0:
+            print('There is no request from any project')
+            input('Back to Menu(enter): ')
+            self.student_menu()
+        pending = my_DB.search('pending_member')
+        print()
+        print('ProjectID         Title               Leader            ')
+        print('----------------  ------------------  ------------------')
+        for row in pending.table:
+            if row['to_be_member'] == self.id and row['status'] == 'waiting':
+                pro = search_project(row['ProjectID'])
+                print(f'{pro.ProjectID:<18}{pro.Title:<20}{pro.get_full_name(pro.Lead)}')
+        print()
+        option = get_option('Do you want to accept or deny any request(y/n)? ', ['y', 'n'])
+        if option == 'y':
+            self.student_answer_request()
+        self.student_menu()
 
     def student_answer_request(self):
         pending = my_DB.search('pending_member')
         logins = my_DB.search('login')
+        all_request = pending.filter(lambda row: row['to_be_member'] == self.id and row['status'] == 'waiting')
+        all_pro = [row['ProjectID'] for row in all_request.table]
         pro_id = input('ProjectID you want to answer: ')
-        if pending.filter(lambda row: row['id'] == pro_id and row['to_be_member'] == self.id).table:
+        if pro_id not in all_pro:
+            print('Invalid ProjectID')
+        else:
             answer = get_option('Accept or Deny this project(a/d)? ', ['a', 'd'])
-            all_project = pending.filter(lambda x: x['to_be_member'] == self.id)
             my_project = None
             if answer == 'a':
-                pending.update(lambda x: x['to_be_member'] == self.id, 'status', 'Deny')
-                for pro in all_project.table:
-                    lead = search_student(pro['project'].Lead)
+                pending.update(lambda x: x['to_be_member'] == self.id and x['status'] == 'waiting', 'status', 'Deny')
+                for pro in all_request.table:
+                    this_pro = search_project(pro['ProjectID'])
+                    lead = search_student(this_pro.Lead)
                     lead.num_answer += 1
-                    if pro['id'] != pro_id:
-                        pro['project'].num_member_requesting -= 1
+                    if this_pro.ProjectID != pro_id:
+                        this_pro.num_member_requesting -= 1
                     else:
-                        my_project = pro['project']
-                pending.update(lambda x: x['to_be_member'] == self.id and x['id'] == pro_id, 'status', 'Accept')
-                print(f'Successfully Accept, now you are member of project {pro_id}.')
-                input('Go to your project menu (enter):')
-                self.num_answer = 0
-                logins.update(lambda x: x['ID'] == self.id, 'role', 'member')  # change role to lead
-                self.num_answer = 0
-                # modify project detail
+                        my_project = this_pro
+                pending.update(lambda x: x['to_be_member'] == self.id and x['ProjectID'] == pro_id, 'status', 'Accept')
+                logins.update(lambda x: x['ID'] == self.id, 'role', 'member')
                 my_project.num_member += 1
                 if my_project.num_member == 1:
                     my_project.Member1 = self.id
                 else:
                     my_project.Member2 = self.id
                 self.project = my_project
+                self.num_answer = 0
+                print(f'Successfully Accept, now you are a member of project {pro_id}.')
+                input('Go to Project Menu(enter): ')
                 self.member_menu()
             else:
-                pending.update(lambda x: x['to_be_member'] == self.id and x['id'] == pro_id, 'status', 'Deny')
-                all_project = all_project.filter(lambda x: x['id'] == pro_id)
-                for pro in all_project.table:
-                    lead = search_student(pro['project'].Lead)
-                    lead.num_answer += 1
-                    pro['project'].num_member_requesting -= 1
+                pending.update(lambda x: x['to_be_member'] == self.id and x['ProjectID'] == pro_id, 'status', 'Deny')
+                this_pro = search_project(pro_id)
+                lead = search_student(this_pro.Lead)
+                lead.num_answer += 1
+                this_pro.num_member_requesting -= 1
                 print(f'Successfully Deny, project {pro_id}.\n')
                 self.num_answer -= 1
-        else:
-            print('Invalid projectID')
         self.student_check_request()
 
-    def student_check_request(self):
-        if self.num_answer == 0:
-            print('There is no request from any project')
-            input('Back to Menu(enter):')
-            self.student_menu()
-        pending = my_DB.search('pending_member')
+    # Lead and Member Method
+    def member_menu(self):
         print()
-        print('ProjectID\t\tTitle\t\t\tLeader')
-        for row in pending.table:
-            if row['to_be_member'] == self.id:
-                print(f'{row["id"]}\t\t\t{row["title"]}\t\t\t{row["lead"]}')
-        print('\n')
-        option = get_option('Do you want to accept or deny any request(y/n)? ', ['y', 'n'])
-        if option == 'y':
-            self.student_answer_request()
-        self.student_menu()
+        print('Project Menu')
+        print('******************************')
+        print(f'Status: {self.project.Status}')
+        if self.project.Status == 'Deny':
+            print('\tThis project has denied, please edit and send it again.')
+            self.project.Status = 'Processing'
+        print('1.Project Detail')
+        print('2.Check Requesting Status')
+        print('0.Log Out')
+        print('******************************')
+        option = get_option('Your Option: ', [str(n) for n in range(0, 3)])
+        if option == '1':
+            self.project.check_project_detail()
+            if self.project.Status == 'Processing':
+                option = get_option('Do you want to change any detail(y/n)? ', ['y', 'n'])
+                if option == 'y':
+                    self.project.change_project_detail()
+            input('Back to Menu(enter): ')
+        elif option == '2':
+            self.check_request()
+        else:
+            run_login()
+        self.member_menu()
 
     def lead_menu(self):
         print()
         print('Project Menu')
+        print('******************************')
+        if self.project is None:
+            print('Admin has canceled your project')
+            login_table = my_DB.search('login')
+            login_table.update(lambda x: x['ID'] == self.id, 'role', 'student')
+            input('Back to Student Menu(enter): ')
+            self.student_menu()
+        print(f'Status: {self.project.Status}')
+        if self.project.Status == 'Deny':
+            print('\tThis project has denied, please edit and send it again.')
+            self.project.Status = 'Processing'
         if self.num_answer == 0:
             print('1.Check Answer Request')
         else:
             print(f'1.Check Answer Request: new {self.num_answer} answer!')
         print('2.Project Detail')
-        print('3.Request new member')
-        print('4.Request new advisor')
-        print('5.Send project')
-        print('6.Cancel project')
-        print('0.Log out')
-        option = get_option('Your Option: ', [str(n) for n in range(0, 7)])
+        print('3.Request new Member')
+        print('4.Request new Advisor')
+        if self.project.num_submit == 3:
+            print('5.Send Proposal: new message!')
+        else:
+            print('5.Send Proposal')
+        print('6.Send Project')
+        print('7.Cancel Project')
+        print('0.Log Out')
+        print('******************************')
+        option = get_option('Your Option: ', [str(n) for n in range(0, 8)])
         if option == '1':
             self.check_request()
         elif option == '2':
@@ -252,21 +735,92 @@ class Student:
                 option = get_option('Do you want to change any detail(y/n)? ', ['y', 'n'])
                 if option == 'y':
                     self.project.change_project_detail()
+            input('Back to Menu(enter): ')
         elif option == '3':
             self.request_new_member()
         elif option == '4':
             self.request_new_advisor()
+        elif option == '5':
+            self.send_proposal()
+        elif option == '6':
+            self.send_project()
+        elif option == '7':
+            self.cancel_project()
         elif option == '0':
             run_login()
         self.lead_menu()
 
     def check_request(self):
+        print()
+        print('                   REQUESTING                   ')
+        print('************************************************')
         self.check_request_member()
         print()
         self.check_request_advisor()
-        print()
-        input('Back to Menu (enter): ')
+        print('************************************************')
+        input('Back to Menu(enter): ')
         self.num_answer = 0
+
+    def check_request_member(self):
+        print('MEMBER')
+        pending = my_DB.search('pending_member')
+        all_request = [row for row in pending.table if row['ProjectID'] == self.project.ProjectID]
+        if not all_request:
+            print('There is no requesting.')
+        else:
+            print('StudentID         Username        Status')
+            print('----------------  --------------  --------------')
+            for request in all_request:
+                student = search_student(request["to_be_member"])
+                print(f'{student.id:<18}{student.name:<16}{request["status"]}')
+
+    def check_request_advisor(self):
+        print('ADVISOR')
+        pending = my_DB.search('pending_advisor')
+        all_request = [i for i in pending.table if i['ProjectID'] == self.project.ProjectID]
+        if not all_request:
+            print('There is no requesting.')
+        else:
+            print('AdvisorID         Username        Status        ')
+            print('----------------  --------------  --------------')
+            for row in all_request:
+                faculty = search_faculty(row["to_be_advisor"])
+                print(f'{faculty.id:<18}{faculty.name:<16}{row["status"]}')
+
+    # Lead ONLY method
+    def request_new_member(self):
+        print()
+        pend = my_DB.search('pending_member')
+        if self.project.Status == 'request_cancel':
+            print('You are in canceling project process, can not request any member.')
+        elif self.project.num_member_requesting == 2:
+            print('Max requesting member, can not add more.')
+        else:
+            print(f'Can request {2 - self.project.num_member_requesting} more member')
+            check = get_option('Check available student(y/n)? ', ['y', 'n'])
+            if check == 'y':
+                print('StudentID         Username')
+                print('----------------  --------------')
+                self.check_available('student')
+            id_request = input('Request Member ID: ')
+            available_id = my_DB.search('login').filter(lambda x: x['ID'] == id_request and x['role'] == 'student')
+            history = pend.filter(lambda x: x['ProjectID'] == self.project.ProjectID and x['to_be_member'] == id_request and x['status'] == 'waiting')
+            if not available_id.table:
+                print('Invalid ID or this student is in some project.')
+            elif history.table:
+                print('You have already sent request to this student.')
+            else:
+                member = search_student(id_request)
+                member.num_answer += 1
+                pend_data = {'ProjectID': self.project.ProjectID, 'to_be_member': id_request, 'status': 'waiting'}
+                pend.table.append(pend_data)
+                self.project.num_member_requesting += 1
+                print(f'Successfully, send request to {member.name} (id:{id_request}).')
+            more = get_option('Do you want to request more member(y/n): ', ['y', 'n'])
+            if more == 'y':
+                self.request_new_member()
+        input('Back to Menu(enter): ')
+        self.lead_menu()
 
     def request_new_advisor(self):
         pending = my_DB.search('pending_advisor')
@@ -277,233 +831,421 @@ class Student:
         else:
             check = get_option('Check available advisor(y/n)? ', ['y', 'n'])
             if check == 'y':
-                print('FacultyID\t\t\tUsername')
+                print('FacultyID         Username')
+                print('----------------  --------------')
                 self.check_available('faculty')
             id_request = input('Request Faculty ID: ')
             advisor = search_faculty(id_request)
-            if not advisor or advisor.num_project == 3:
-                print('Not valid ID or this faculty advise maximum project')
+            if advisor is None or advisor.num_project == 3:
+                print('Invalid ID or this faculty advise maximum project')
             else:
                 print(f'Successfully, send request to {advisor.name} (id:{id_request}).')
                 advisor.num_request += 1
-                pending.table.append({'project': self.project, 'id': self.project.ProjectID, 'title': self.project.Title,
-                                      'lead': self.name, 'to_be_advisor': id_request, 'status': 'waiting'})
+                pend_data = {'ProjectID': self.project.ProjectID, 'to_be_advisor': id_request, 'status': 'waiting'}
+                pending.table.append(pend_data)
                 self.project.num_advisor += 1
-        input('Back to Menu (enter)')
+        input('Back to Menu(enter): ')
 
-    def check_request_advisor(self):
-        print('Advisor Requesting')
-        pending = my_DB.search('pending_advisor')
-        all_request = [i for i in pending.table if i['id'] == self.project.ProjectID]
-        if not all_request:
-            print('There is no requesting.')
+    def send_proposal(self):
+        if self.project.Advisor is None:
+            print('Your project does not have an advisor.')
+        elif self.project.num_submit == 1:
+            print('You have already send the project, waiting for your advisor to approve.')
+        elif self.project.num_submit == -1:
+            print('Your proposal has denied by the advisor, please edit and send it again.')
+        elif self.project.num_submit >= 2:
+            print('Your proposal has approved by the advisor.')
+            self.project.num_submit = 2
         else:
-            print('Request Advisor\t\tStatus')
-            for i in all_request:
-                print(f'{i["to_be_advisor"]}\t\t\t\t{i["status"]}')
+            option = get_option('Are you sure to send this proposal to your advisor(y/n)? ', ['y', 'n'])
+            if option == 'y':
+                send = my_DB.search('send_proposal')
+                my_pro = self.project
+                send.table.append({'ProjectID': my_pro.ProjectID, 'advisor': my_pro.Advisor, 'status': 'waiting'})
+                advisor = search_faculty(self.project.Advisor)
+                advisor.num_submit += 1
+                self.project.num_submit = 1
+                print('Successfully send the proposal to your advisor.')
+        input('Back to Menu(enter): ')
 
-    def request_new_member(self):
-        pend = my_DB.search('pending_member').table
-        if self.project.num_member_requesting == 2:
-            print('Max requesting member, can not add more.')
-            input('Back to Menu (enter)')
-            self.lead_menu()
-        print(f'Can request {2 - self.project.num_member_requesting} more member')
-        check = get_option('Check available student(y/n)? ', ['y', 'n'])
-        if check == 'y':
-            print('StudentID\t\t\tUsername')
-            self.check_available('student')
-        id_request = input('Request Member ID: ')
-        fil = my_DB.search('login').filter(lambda x: x['ID'] == id_request and x['role'] == 'student')
-        inbox = my_DB.search('pending_member').filter(lambda x: x['to_be_member'] == id_request and
-                                                                x['lead'] == self.name and x['status'] == 'waiting')
-        # print(fil)
-        if not fil.table:
-            print('Not valid ID or this student is in some project')
-        if inbox.table:
-            print('You have already send request to this student.')
+    def send_project(self):
+        if self.project.num_submit == 0:
+            print('Send the proposal to your advisor before send the project to the committee.')
+        elif self.project.num_submit == 1:
+            print('Your proposal is waiting for your advisor to approve.')
+        elif self.project.Status == 'Processing':
+            print('During evaluate your project, you can not change any information.')
+            option = get_option('Are you sure to send this project(y/n)? ', ['y', 'n'])
+            if option == 'y':
+                faculty = my_DB.search('faculty')
+                send_project = my_DB.search('send_project')
+                my_pro = self.project
+                all_faculty = [row.id for row in faculty.table if row.id != self.project.Advisor]
+                for _ in range(3):
+                    commit_choice = random.randint(0, len(all_faculty)-1)
+                    committee = all_faculty[commit_choice]
+                    del all_faculty[commit_choice]
+                    send_project.table.append({'ProjectID': my_pro.ProjectID, 'committee': committee, 'status': 'waiting'})
+                    advisor = search_faculty(committee)
+                    advisor.num_approve += 1
+                    # print(committee)
+                self.project.Status = 'Sending'
+                print('Successfully send this project, wait for the committees to approve.')
         else:
-            member = search_student(id_request)
-            print(f'Successfully, send request to {member.name} (id:{id_request}).')
-            member.num_answer += 1
-            pend.append({'project': self.project, 'id': self.project.ProjectID, 'title': self.project.Title,
-                         'lead': self.name, 'to_be_member': id_request, 'status': 'waiting'})
-            self.project.num_member_requesting += 1
-        more = get_option('Do you want to request more member(y/n): ', ['y', 'n'])
-        if more == 'y':
-            self.request_new_member()
-        self.lead_menu()
+            print('You have already send this project.')
+        input('Back to Menu(enter): ')
 
-    def check_request_member(self):
-        print()
-        print('Member Requesting')
-        pending = my_DB.search('pending_member')
-        all_request = [i for i in pending.table if i['id'] == self.project.ProjectID]
-        if not all_request:
-            print('There is no requesting.')
+    def cancel_project(self):
+        if self.project.num_member != 0:
+            print('Can not cancel this project.')
         else:
-            print('StudentID\t\tUsername\t\tStatus')
-            for i in all_request:
-                print(f'{i["to_be_member"]}\t\t\t{search_student(i["to_be_member"]).name}\t\t{i["status"]}')
-
-    def member_menu(self):
-        print()
-        print('Project Menu')
-        print('1.Project Detail')
-        print('2.Check Requesting status')
-        print('0.Log out')
-        option = get_option('Your Option: ', [str(n) for n in range(0, 3)])
-        if option == '1':
-            self.project.check_project_detail()
-            if self.project.Status == 'Processing':
-                option = get_option('Do you want to change any detail(y/n)? ', ['y', 'n'])
+            if self.project.Status == 'request_cancel':
+                print('Waiting for admin to approve your canceling')
+            else:
+                print('All of your requesting will be delete and you can not add more member during waiting for cancel.')
+                option = get_option('Are you sure to cancel this project(y/n)? ', ['y', 'n'])
                 if option == 'y':
-                    self.project.change_project_detail()
-        elif option == '2':
-            self.check_request()
-        else:
-            run_login()
-        self.member_menu()
+                    pending = my_DB.search('pending_member').table
+                    self.project.Status = 'request_cancel'
+                    for row in pending:
+                        if row['project'] == self.project and row['status'] == 'waiting':
+                            student = search_student(row['to_be_member'])
+                            student.num_answer -= 1
+                            row['status'] = 'cancel'
+                    admin = my_DB.search('admin').table[0]
+                    admin.num_request += 1
+                    self.num_answer = 0
+                    print('Successfully, send request to admin.')
+        input('Back to Menu(enter): ')
 
 
 class Faculty:
-    def __init__(self, get_id, get_name):
+    def __init__(self, get_id, get_name, num_p=0, num_r=0, num_s=0, num_a=0):
         self.id = get_id
         self.name = get_name
-        self.num_project = 0
-        self.num_request = 0
-        self.all_project = []
+        self.num_project = int(num_p)
+        self.num_request = int(num_r)
+        self.num_submit = int(num_s)   # for proposal
+        self.num_approve = int(num_a)  # for approve project
+
+    def get_table(self):
+        return {'id': self.id,
+                'name': self.name,
+                'num_project': self.num_project,
+                'num_request': self.num_request,
+                'num_submit': self.num_submit,
+                'num_approve': self.num_approve}
 
     def faculty_menu(self):
-        option_num = 1
         print()
-        print('Menu')
-        print('1.Check Project')
-        if self.num_project < 3:
-            option_num += 1
-            if self.num_request == 0:
-                print('2.Check Request')
-            else:
-                print(f'2.Check Request: {self.num_request} new request!')
-        print('0.Log out')
-        option = get_option('Your Option: ', [str(n) for n in range(0, option_num+1)])
+        print('Faculty Menu')
+        print('******************************')
+        if self.num_approve == 0:
+            print('1.Approve Project')
+        else:
+            print(f'1.Approve Project: {self.num_approve} project')
+        if self.num_request == 0:
+            print(f'2.Check Request')
+        else:
+            print(f'2.Check Request: {self.num_request} new request!')
+        print('0.Log Out')
+        print('******************************')
+        option = get_option('Your Option: ', [str(n) for n in range(0, 3)])
         if option == '1':
-            self.check_project()
+            self.approve_project()
         elif option == '2':
             self.faculty_check_request()
-            input('Back to menu (enter): ')
+            input('Back to Menu(enter): ')
         else:
             run_login()
         self.faculty_menu()
 
-    def check_project(self):
+    def advisor_menu(self):
+        option_num = 3
         print()
-        print('Your Project')
-        print('ProjectID\t\tTitle\t\tLeader')
+        print('Advisor Menu')
+        print('******************************')
+        if self.num_approve == 0:
+            print('1.Approve Project')
+        else:
+            print(f'1.Approve Project: {self.num_approve} project')
+        print('2.Check Project')
+        if self.num_submit == 0:
+            print('3.Check Submit Proposal')
+        else:
+            print(f'3.Check Submit Proposal: {self.num_submit} new submit!')
+        if self.num_project < 3:
+            option_num += 1
+            if self.num_request == 0:
+                print(f'4.Check Request')
+            else:
+                print(f'4.Check Request: {self.num_request} new request!')
+        print('0.Log Out')
+        print('******************************')
+        option = get_option('Your Option: ', [str(n) for n in range(0, option_num + 1)])
+        if option == '1':
+            self.approve_project()
+        elif option == '2':
+            self.check_project()
+            input('Back to Menu(enter): ')
+        elif option == '3':
+            self.check_submit_project()
+        elif option == '4':
+            self.faculty_check_request()
+            input('Back to menu (enter): ')
+        else:
+            run_login()
+        self.advisor_menu()
+
+    def check_project(self):
+        projects = my_DB.search('project')
+        all_project = projects.filter(lambda x: x.Advisor == self.id)
         num = 1
-        for row in self.all_project:
-            print(f'{num}. {row.ProjectID}\t\t\t{row.Title}\t\t\t{row.Lead}')
+        print()
+        print('PROJECT')
+        print('NO. ProjectID      Title          Leader          ')
+        print('--- -------------  -------------  ----------------')
+        for row in all_project.table:
+            print(f'{str(num) + "." :<4}{row.ProjectID:<15}{row.Title:<15}{row.get_full_name(row.Lead)}')
+            num += 1
+        print()
         option = get_option('Do you want to check any project detail(y/n)? ', ['y', 'n'])
         if option == 'y':
-            pro_num = get_option('Which project you want to check? ', [str(n) for n in range(1, num+1)])
-            this_project = self.all_project[int(pro_num)-1]
+            pro_num = int(get_option('Which project you want to check? ', [str(n) for n in range(1, num + 1)]))
+            this_project = all_project.table[pro_num - 1]
             this_project.check_project_detail()
+
+    def check_submit_project(self):
+        print()
+        if self.num_submit == 0:
+            print('None of the project proposal have submitted.')
+        else:
+            all_project = my_DB.search('project')
+            send_proposal = my_DB.search('send_proposal')
+            my_proposal = send_proposal.filter(lambda x: x['advisor'] == self.id and x['status'] == 'waiting')
+            print('ProjectID         Title')
+            print('----------------  --------------------')
+            for row in my_proposal.table:
+                this_pro = search_project(row['ProjectID'])
+                print(f'{this_pro.ProjectID:<18}{this_pro.Title}')
+            print()
+            option = get_option('Do you want approve any project proposal(y/n)? ', ['y', 'n'])
+            if option == 'y':
+                my_proposal = [row['ProjectID'] for row in my_proposal.table]
+                pro_id = input('Which ProjectID you want to answer? ')
+                if pro_id not in my_proposal:
+                    print('Invalid ProjectID')
+                else:
+                    answer = get_option('You want to approve or deny this proposal(a/d)? ', ['a', 'd'])
+                    this_pro = all_project.filter(lambda x: x.ProjectID == pro_id).table[0]
+                    if answer == 'a':
+                        this_pro.num_submit = 3
+                        self.num_submit -= 1
+                        send_proposal.update(lambda x: x['ProjectID'] == pro_id, 'status', 'Accept')
+                        print('Successfully approve this project.')
+                    else:
+                        this_pro.num_submit = -1
+                        self.num_submit -= 1
+                        send_proposal.update(lambda x: x['ProjectID'] == pro_id, 'status', 'Deny')
+                        print('Successfully deny this project.')
+        input('Back to Menu(enter): ')
+
+    def approve_project(self):
+        print()
+        send_pro = my_DB.search('send_project')
+        my_approve = send_pro.filter(lambda x: x['committee'] == self.id and x['status'] == 'waiting')
+        if not my_approve.table:
+            print('There is no project you have to approve.')
+        else:
+            print('ProjectID         Title               ')
+            print('----------------  --------------------')
+            for row in my_approve.table:
+                this_pro = search_project(row['ProjectID'])
+                print(f'{this_pro.ProjectID:<18}{this_pro.Title}')
+            print()
+            option = get_option('Do you want to answer any project(y/n)? ', ['y', 'n'])
+            if option == 'y':
+                my_approve = [row['ProjectID'] for row in my_approve.table]
+                pro_id = input('ProjectID you want to answer: ')
+                if pro_id not in my_approve:
+                    print('Invalid ProjectID')
+                else:
+                    this_pro = search_project(pro_id)
+                    check = get_option('Do you want to see this project detail(y/n): ', ['y', 'n'])
+                    if check == 'y':
+                        this_pro.check_project_detail()
+                    approve = get_option('Approve or Deny this project(a/d)? ', ['a', 'd'])
+                    if approve == 'a':
+                        approved = send_pro.filter(lambda x: x['committee'] == self.id and x['ProjectID'] == pro_id)
+                        approved.table[0]['status'] = 'Accept'
+                        this_pro.num_approve += 1
+                        if this_pro.num_approve == 3:
+                            this_pro.Status = 'Approve'
+                        self.num_approve -= 1
+                        print('Successfully Approve this project.')
+                    else:
+                        all_approve = send_pro.filter(lambda x: x['ProjectID'] == pro_id and x['status'] == 'waiting')
+                        for row in all_approve.table:
+                            faculty = search_faculty(row['committee'])
+                            faculty.num_approve -= 1
+                        this_pro = search_project(pro_id)
+                        this_pro.Status = 'Deny'
+                        send_pro.update(lambda x: x['ProjectID'] == pro_id and x['status'] == 'waiting', 'status', 'Deny')
+                        print('Successfully Deny this project.')
+        input('Back to Menu(enter): ')
 
     def faculty_check_request(self):
         print()
-        print('Project Requesting')
+        print('PROJECT REQUESTING')
         if self.num_request == 0:
             print('There is no request from any project')
             input('Back to Menu(enter):')
-            self.faculty_menu()
-        pending = my_DB.search('pending_advisor')
-        print('ProjectID\t\tTitle')
-        for row in pending.table:
-            if row['to_be_advisor'] == self.id:
-                print(f'{row["id"]}\t\t\t{row["title"]}')
-        print('\n')
-        option = get_option('Do you want to accept or deny any request(y/n)? ', ['y', 'n'])
-        if option == 'y':
-            self.faculty_answer_request()
+        else:
+            pending = my_DB.search('pending_advisor')
+            print()
+            print('ProjectID         Title               Leader            ')
+            print('----------------  ------------------  ------------------')
+            for row in pending.table:
+                this_pro = search_project(row['ProjectID'])
+                if row['to_be_advisor'] == self.id and row['status'] == 'waiting':
+                    print(f'{this_pro.ProjectID:<18}{this_pro.Title:<20}{this_pro.get_full_name(this_pro.Lead)}')
+            print()
+            option = get_option('Do you want to accept or deny any request(y/n)? ', ['y', 'n'])
+            if option == 'y':
+                self.faculty_answer_request()
 
     def faculty_answer_request(self):
         pending = my_DB.search('pending_advisor')
+        projects = my_DB.search('project')
         logins = my_DB.search('login')
+        all_request = pending.filter(lambda row: row['to_be_advisor'] == self.id and row['status'] == 'waiting')
+        all_pro = [row['ProjectID'] for row in all_request.table]
         pro_id = input('ProjectID you want to answer: ')
-        if pending.filter(lambda row: row['id'] == pro_id and row['to_be_advisor'] == self.id).table:
+        if pro_id not in all_pro:
+            print('Invalid ProjectID')
+        else:
             answer = get_option('Accept or Deny this project(a/d)? ', ['a', 'd'])
-            all_project = pending.filter(lambda x: x['to_be_advisor'] == self.id)
             if answer == 'a':
                 self.num_project += 1
                 my_project = None
                 if self.num_project == 3:
                     pending.update(lambda x: x['to_be_advisor'] == self.id, 'status', 'Deny')
-                for pro in all_project.table:
-                    lead = search_student(pro['project'].Lead)
+                for pro in all_request.table:
+                    this_pro = search_project(pro['ProjectID'])
+                    lead = search_student(this_pro.Lead)
                     lead.num_answer += 1
-                    if pro['id'] != pro_id:
-                        pro['project'].num_advisor_requesting -= 1
+                    if this_pro.ProjectID != pro_id:
+                        this_pro.num_advisor_requesting -= 1
                     else:
-                        my_project = pro['project']
-                        self.all_project.append(my_project)
-                pending.update(lambda x: x['to_be_advisor'] == self.id and x['id'] == pro_id, 'status', 'Accept')
+                        my_project = this_pro
+                pending.update(lambda x: x['to_be_advisor'] == self.id and x['ProjectID'] == pro_id, 'status', 'Accept')
+                my_project.Advisor = self.id
                 print(f'Successfully Accept, now you are an advisor of project {pro_id}.')
                 if self.num_project == 3:
                     self.num_request = 0
                 else:
                     self.num_request -= 1
-                logins.update(lambda x: x['ID'] == self.id, 'role', 'Advisor')
-                # modify project detail
-                my_project.Advisor = self.id
-                my_project.num_advisor = 1
-                input('Back to menu (enter):')
-                self.faculty_menu()
+                logins.update(lambda x: x['ID'] == self.id, 'role', 'advisor')
+                if self.num_project == 1:
+                    input('Go to Advisor Menu(enter): ')
+                    self.advisor_menu()
             else:
-                pending.update(lambda x: x['to_be_advisor'] == self.id and x['id'] == pro_id, 'status', 'Deny')
-                project_table = my_DB.search('project')
-                project = project_table.filter(lambda x: x.ProjectID == pro_id).table[0]
-                lead = search_student(project.Lead)
-                lead.num_answer +=1
-                print(f'Successfully Deny, project {pro_id}.\n')
+                this_request = all_request.filter(lambda x: x['ProjectID'] == pro_id).table[0]
+                pending.update(lambda x: x['to_be_advisor'] == self.id and x['ProjectID'] == pro_id, 'status', 'Deny')
+                lead = search_student(this_request['project'].Lead)
+                lead.num_answer += 1
+                this_pro = search_project(pro_id)
+                this_pro.num_advisor = 0
+                print(f'Successfully Deny, project {pro_id}.')
                 self.num_request -= 1
-        else:
-            print('Invalid projectID')
+            input('Back to Menu(enter): ')
+            self.faculty_menu()
         self.faculty_check_request()
 
 
+def update_csv(file_name, key, list_of_dict):
+    file = open(file_name, 'w')
+    writer = csv.DictWriter(file, fieldnames=key)
+    writer.writeheader()
+    writer.writerows(list_of_dict)
+    file.close()
 
-# define a function called exit
+
 def exit():
-    pass
+    persons = my_DB.search('persons')
+    update_csv('persons.csv', ['ID', 'first', 'last', 'type'], persons.table)
+
+    logins = my_DB.search('login')
+    update_csv('login.csv', ['ID', 'username', 'password', 'role'], logins.table)
+
+    admin = my_DB.search('admin')
+    list_of_admin = [{'id': row.id, 'name': row.name, 'num_request': row.num_request} for row in admin.table]
+    update_csv('Admin.csv', ['id', 'name', 'num_request'], list_of_admin)
+
+    student = my_DB.search('student')
+    list_of_student = [{'id': row.id, 'name': row.name, 'num_answer': row.num_answer} for row in student.table]
+    update_csv('Student.csv', ['id', 'name', 'num_answer'], list_of_student)
+
+    faculty = my_DB.search('faculty')
+    list_of_faculty = [row.get_table() for row in faculty.table]
+    faculty_key = ['id', 'name', 'num_project', 'num_request', 'num_submit', 'num_approve']
+    update_csv('Faculty.csv', faculty_key, list_of_faculty)
+
+    project = my_DB.search('project')
+    list_of_project = [pro.get_table() for pro in project.table]
+    project_key = ['ProjectID', 'Title', 'Keyword', 'Lead', 'Member1', 'Member2', 'Advisor', 'Status', 'num_member_requesting', 'num_member', 'num_advisor', 'num_submit', 'num_approve']
+    update_csv('Project.csv', project_key, list_of_project)
+
+    pending_member = my_DB.search('pending_member')
+    update_csv('Pending_member.csv', ['ProjectID', 'to_be_member', 'status'], pending_member.table)
+
+    pending_advisor = my_DB.search('pending_advisor')
+    update_csv('Pending_advisor.csv', ['ProjectID', 'to_be_advisor', 'status'], pending_advisor.table)
+
+    sign_up = my_DB.search('sign_up')
+    update_csv('Sign_up.csv', ['ID', 'first', 'last', 'row', 'status'], sign_up.table)
+
+    send_proposal = my_DB.search('send_proposal')
+    update_csv('Send_proposal.csv', ['ProjectID', 'advisor', 'status'], send_proposal.table)
+
+    send_project = my_DB.search('send_project')
+    update_csv('Send_project.csv', ['ProjectID', 'committee', 'status'], send_project.table)
+
+    sys.exit()
 
 
-# here are things to do in this function: write out all the tables that have been modified to the corresponding csv
-# files By now, you know how to read in a csv file and transform it into a list of dictionaries. For this project,
-# you also need to know how to do the reverse, i.e., writing out to a csv file given a list of dictionaries. See the
-# link below for a tutorial on how to do this:
+def search_project(check_id):
+    project_table = my_DB.search('project')
+    project = project_table.filter(lambda x: x.ProjectID == check_id)
+    if not project_table.table:
+        return None
+    else:
+        return project.table[0]
 
-# https://www.pythonforbeginners.com/basics/list-of-dictionaries-to-csv-in-python
-
-
-# make calls to the initializing and login functions defined above
 
 def search_student(check_id):
     student_table = my_DB.search('student')
-    student = [stu for stu in student_table.table if stu.id == check_id]
-    student = student[0]
-    return student
+    student = student_table.filter(lambda x: x.id == check_id)
+    if not student.table:
+        return None
+    else:
+        return student.table[0]
 
 
 def search_faculty(check_id):
     faculty_table = my_DB.search('faculty')
-    faculty = [person for person in faculty_table.table if person.id == check_id]
-    faculty = faculty[0]
-    return faculty
+    faculty = faculty_table.filter(lambda x: x.id == check_id)
+    if not faculty.table:
+        return None
+    else:
+        return faculty.table[0]
 
 
 def processing(val):
-    # if val[1] == 'admin':
-    # see and do admin related activities
+    if val[1] == 'admin':
+        admin = my_DB.search('admin').table[0]
+        admin.admin_menu()
+        # see and do admin related activities
     if val[1] == 'student':
         student = search_student(val[0])
         student.student_menu()
@@ -517,8 +1259,11 @@ def processing(val):
     elif val[1] == 'faculty':
         faculty = search_faculty(val[0])
         faculty.faculty_menu()
-    # elif val[1] == 'advisor':
-    #     # see and do advisor related activities
+    elif val[1] == 'advisor':
+        advisor = search_faculty(val[0])
+        advisor.advisor_menu()
+    elif val[1] in ['waiting', 'new']:
+        waiting_room(val[0])
 
 
 def run_login():
@@ -530,11 +1275,3 @@ def run_login():
 
 initializing()
 run_login()
-
-
-# based on the return value for login, activate the code that performs activities according to the role defined for
-# that person_id
-
-
-# once everything is done, make a call to the exit function
-# exit()

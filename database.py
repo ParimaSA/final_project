@@ -55,7 +55,7 @@ class Table:
                 filtered_table.table.append(item1)
         return filtered_table
 
-    def __is_float(self,element):
+    def __is_float(self, element):
         if element is None:
             return False
         try:
@@ -89,10 +89,8 @@ class Table:
             for row in filter_table.table:
                 row[key] = val
 
-
     def __str__(self):
         return self.table_name + ':' + str(self.table)
-
 
 # modify the code in the Table class so that it supports the insert operation where an entry can be added to a list of dictionary
 

@@ -16,6 +16,7 @@ Table in the database:
 if login successful, find that person in object version of Student/Faculty class, then use the method in that class
 
 TO evaluate the project:
-- after advisor get the project that has been sending from the leader
-- advisor send the project detail to other faculty to check and approve
-- after all the faculty accepted that project will be finished
+- can send the project after the advisor approve the proposal
+- send the project to 3 random faculty/advisor that is not the advisor of this project
+  - if all of the committee approve the project -> project is Approve
+  - if one of the committee deny the project -> project is Deny

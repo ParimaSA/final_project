@@ -642,7 +642,7 @@ class Student:
         self.num_answer = int(num_answer)  # for notification
 
     def get_table(self):
-        return {'id': self.id, 'name': self.name, 'num_request': self.num_answer}
+        return {'id': self.id, 'name': self.name, 'num_answer': self.num_answer}
 
     @staticmethod
     def check_available(role):
@@ -682,9 +682,9 @@ class Student:
             check = get_option('Are you sure to create your project(y/n)? ', ['y', 'n'])
             if check == 'y':  # create project
                 title = input('Your project title: ').capitalize()
-                pending.update(lambda x: x['to_be_member'] == self.id, 'status', 'Deny')  # deny all project
                 all_request = pending.filter(lambda x: x['to_be_member'] == self.id and x['status'] == 'waiting')
                 update_lead(all_request, None, 'member', -1)  # send notification to all lead that deny
+                pending.update(lambda x: x['to_be_member'] == self.id, 'status', 'Deny')  # deny all project
                 self.num_answer = 0  # clear all the notification
                 logins.update(lambda x: x['ID'] == self.id, 'role', 'lead')  # change role to lead
                 all_project_id = [row.ProjectID for row in projects.table]
@@ -1306,10 +1306,10 @@ def update_and_exit():
     # update all the data to the csv file
     update_csv('persons.csv', persons_key, persons.table)
     update_csv('login.csv', login_key, logins.table)
-    update_csv('Admin.csv', admin_key, [row.get_table for row in admin.table])
-    update_csv('Student.csv', student_key, [row.get_table for row in student.table])
-    update_csv('Faculty.csv', faculty_key, [row.get_table for row in faculty.table])
-    update_csv('Project.csv', project_key, [pro.get_table for pro in project.table])
+    update_csv('Admin.csv', admin_key, [row.get_table() for row in admin.table])
+    update_csv('Student.csv', student_key, [row.get_table() for row in student.table])
+    update_csv('Faculty.csv', faculty_key, [row.get_table() for row in faculty.table])
+    update_csv('Project.csv', project_key, [pro.get_table() for pro in project.table])
     update_csv('Pending_member.csv', pending_member_key, pending_member.table)
     update_csv('Pending_advisor.csv', pending_advisor_key, pending_advisor.table)
     update_csv('Sign_up.csv', sign_up_key, sign_up.table)

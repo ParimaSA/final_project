@@ -1139,6 +1139,7 @@ class Faculty:
                             faculty.num_approve -= 1  # subtract the notification
                         this_pro = search_project(pro_id)
                         this_pro.Status = 'Deny'  # change project status to Deny and update status in sending database
+                        this_pro.num_approve = 0 # reset number of approve back to 0
                         send.update(lambda x: x['ProjectID'] == pro_id and x['status'] == 'waiting', 'status', 'Deny')
                         print('Successfully Deny this project.')
         input('Back to Menu(enter): ')

@@ -1,5 +1,6 @@
 # import database module
 import csv
+import os.path
 import random
 import sys
 
@@ -28,43 +29,65 @@ send_project_key = ['ProjectID', 'committee', 'status']
 def initializing():
     persons_table = Table('persons', read_csv('persons.csv'))
     login_table = Table('login', read_csv('login.csv'))
-    request_member_table = Table('pending_member', read_csv('Pending_member.csv'))
-    request_advisor_table = Table('pending_advisor', read_csv('Pending_advisor.csv'))
-    request_sign_up = Table('sign_up', read_csv('Sign_up.csv'))
-    send_proposal = Table('send_proposal', read_csv('Send_proposal.csv'))
-    send_project = Table('send_project', read_csv('Send_project.csv'))
+    if os.path.exists('Student.csv'):
+        request_member_table = Table('pending_member', read_csv('Pending_member.csv'))
+        request_advisor_table = Table('pending_advisor', read_csv('Pending_advisor.csv'))
+        request_sign_up = Table('sign_up', read_csv('Sign_up.csv'))
+        send_proposal = Table('send_proposal', read_csv('Send_proposal.csv'))
+        send_project = Table('send_project', read_csv('Send_project.csv'))
 
-    project = read_csv('Project.csv')  # create object in class Project using data from project.csv file
-    project_table = []
-    for row in project:
-        v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16 = row.values()
-        project_table.append(Project(v1, v2, v4, v3, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16))
-    project_table = Table('project', project_table)
+        project = read_csv('Project.csv')  # create object in class Project using data from project.csv file
+        project_table = []
+        for row in project:
+            v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16 = row.values()
+            project_table.append(Project(v1, v2, v4, v3, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16))
+        project_table = Table('project', project_table)
 
-    student = read_csv('Student.csv')  # create object in class Student using data from Student.csv file
-    student_table = []
-    for row in student:
-        this_pro = project_table.filter(lambda x: row['id'] in [x.Lead, x.Member1, x.Member2])
-        if this_pro.table:
-            my_pro = this_pro.table[0]  # modify data for .project if this student involve in some project
-        else:
-            my_pro = None
-        student_table.append(Student(row['id'], row['name'], my_pro, row['num_answer']))
-    student_table = Table('student', student_table)
+        student = read_csv('Student.csv')  # create object in class Student using data from Student.csv file
+        student_table = []
+        for row in student:
+            this_pro = project_table.filter(lambda x: row['id'] in [x.Lead, x.Member1, x.Member2])
+            if this_pro.table:
+                my_pro = this_pro.table[0]  # modify data for .project if this student involve in some project
+            else:
+                my_pro = None
+            student_table.append(Student(row['id'], row['name'], my_pro, row['num_answer']))
+        student_table = Table('student', student_table)
 
-    faculty = read_csv('Faculty.csv')  # create object in class Faculty using data from Faculty.csv file
-    faculty_table = []
-    for row in faculty:
-        v1, v2, v3, v4, v5, v6 = row.values()
-        faculty_table.append(Faculty(v1, v2, v3, v4, v5, v6))
-    faculty_table = Table('faculty', faculty_table)
+        faculty = read_csv('Faculty.csv')  # create object in class Faculty using data from Faculty.csv file
+        faculty_table = []
+        for row in faculty:
+            v1, v2, v3, v4, v5, v6 = row.values()
+            faculty_table.append(Faculty(v1, v2, v3, v4, v5, v6))
+        faculty_table = Table('faculty', faculty_table)
 
-    admin = read_csv('Admin.csv')
-    admin_table = []
-    for row in admin:
-        v1, v2, v3 = row.values()
-        admin_table.append(Admin(v1, v2, v3))
-    admin_table = Table('admin', admin_table)
+        admin = read_csv('Admin.csv')
+        admin_table = []
+        for row in admin:
+            v1, v2, v3 = row.values()
+            admin_table.append(Admin(v1, v2, v3))
+        admin_table = Table('admin', admin_table)
+    else:
+        admin_table = []
+        student_table = []
+        faculty_table = []
+        for row in login_table.table:
+            if row['role'] == 'admin':
+                admin_table.append(Admin(row['ID'], row['username']))
+            elif row['role'] == 'student':
+                student_table.append(Student(row['ID'], row['username']))
+            else:
+                faculty_table.append(Faculty(row['ID'], row['username']))
+
+        admin_table = Table('admin', admin_table)
+        student_table = Table('student', student_table)
+        faculty_table = Table('faculty', faculty_table)
+        project_table = Table('project', [])
+        request_member_table = Table('pending_member', [])
+        request_advisor_table = Table('pending_advisor', [])
+        request_sign_up = Table('sign_up', [])
+        send_proposal = Table('send_proposal', [])
+        send_project = Table('send_project', [])
 
     # insert all the table into the database
     my_DB.insert(persons_table)
@@ -97,14 +120,14 @@ def login():
             check = get_option('Sign Up(y/n)? ', ['y', 'n'])
             if check == 'y':
                 send_sign_up()
-            run_login()
+            update_and_exit()
         elif incor_pass_new.table:
             print('Incorrect Password')
         else:  # have username in login table but incorrect password, not a signing up
             check = get_option('Forget Password(y/n)? ', ['y', 'n'])
             if check == 'y':
                 change_password()
-            run_login()
+            update_and_exit()
     else:  # user match password / new account
         check_status = check1.filter(lambda x: x['role'] == 'new')
         this_login = check[0]
@@ -319,7 +342,6 @@ class Admin:
             print('2.Check Request: No request')
         else:
             print(f'2.Check Request: {self.num_request} request!')
-        print('3.Exit')
         print('0.Log Out')
         print('******************************')
         option = get_option('Your Option: ', [str(n) for n in range(0, 4)])
@@ -327,10 +349,8 @@ class Admin:
             self.edit_database()
         elif option == '2':
             self.admin_check_request()
-        elif option == '3':
-            update_and_exit()
         elif option == '0':
-            run_login()
+            update_and_exit()
         self.admin_menu()
 
     def edit_database(self):
@@ -697,7 +717,7 @@ class Student:
                 input('Go to your project menu(enter): ')
                 self.lead_menu()
         elif option == '0':
-            run_login()
+            update_and_exit()
         self.student_menu()
 
     def student_check_request(self):
@@ -782,7 +802,7 @@ class Student:
         elif option == '2':
             self.check_request()
         else:
-            run_login()
+            update_and_exit()
         self.member_menu()
 
     def lead_menu(self):
@@ -835,7 +855,7 @@ class Student:
         elif option == '7':
             self.cancel_project()
         elif option == '0':
-            run_login()
+            update_and_exit()
         self.lead_menu()
 
     def check_request(self):
@@ -1060,7 +1080,7 @@ class Faculty:
             self.faculty_check_request()
             input('Back to Menu(enter): ')
         else:
-            run_login()
+            update_and_exit()
         self.faculty_menu()
 
     def advisor_menu(self):
@@ -1096,7 +1116,7 @@ class Faculty:
             self.faculty_check_request()
             input('Back to Menu(enter):')
         else:
-            run_login()
+            update_and_exit()
         self.advisor_menu()
 
     def approve_project(self):
@@ -1139,7 +1159,7 @@ class Faculty:
                             faculty.num_approve -= 1  # subtract the notification
                         this_pro = search_project(pro_id)
                         this_pro.Status = 'Deny'  # change project status to Deny and update status in sending database
-                        this_pro.num_approve = 0 # reset number of approve back to 0
+                        this_pro.num_approve = 0  # reset number of approve back to 0
                         send.update(lambda x: x['ProjectID'] == pro_id and x['status'] == 'waiting', 'status', 'Deny')
                         print('Successfully Deny this project.')
         input('Back to Menu(enter): ')
@@ -1263,34 +1283,6 @@ def update_csv(file_name, key, list_of_dict):
     file.close()
 
 
-def reset():  # create all the file that need to have for starting the program
-    persons = read_csv('persons_original.csv')
-    logins = read_csv('login_original.csv')
-    admin = []
-    student = []
-    faculty = []
-    for row in logins:
-        if row['role'] == 'admin':
-            admin.append({'id': row['ID'], 'name': row['username'], 'num_request': 0})
-        elif row['role'] == 'student':
-            student.append({'id': row['ID'], 'name': row['username'], 'num_answer': 0})
-        else:
-            faculty.append({'id': row['ID'], 'name': row['username'], 'num_project': 0,
-                            'num_request': 0, 'num_submit': 0, 'num_approve': 0})
-
-    update_csv('persons.csv', ['ID', 'first', 'last', 'type'], persons)
-    update_csv('login.csv', ['ID', 'username', 'password', 'role'], logins)
-    update_csv('Admin.csv', ['id', 'name', 'num_request'], admin)
-    update_csv('Faculty.csv', faculty_key, faculty)
-    update_csv('Student.csv', ['id', 'name', 'num_answer'], student)
-    update_csv('Project.csv', project_key, [])
-    update_csv('Pending_member.csv', ['ProjectID', 'to_be_member', 'status'], [])
-    update_csv('Pending_advisor.csv', ['ProjectID', 'to_be_advisor', 'status'], [])
-    update_csv('Sign_up.csv', ['ID', 'first', 'last', 'role', 'status'], [])
-    update_csv('Send_proposal.csv', ['ProjectID', 'advisor', 'status'], [])
-    update_csv('Send_project.csv', ['ProjectID', 'committee', 'status'], [])
-
-
 def update_and_exit():
     persons = my_DB.search('persons')
     logins = my_DB.search('login')
@@ -1366,15 +1358,9 @@ def processing(val):
         advisor.advisor_menu()
     elif val[1] in ['waiting', 'new']:
         waiting_room(val[0])
+    update_and_exit()
 
 
-def run_login():
-    while True:
-        val = login()
-        if val is not None:
-            processing(val)
-
-
-# reset()
 initializing()
-run_login()
+val = login()
+processing(val)

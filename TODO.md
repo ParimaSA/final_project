@@ -42,7 +42,6 @@
           - clear lead. project = None
           - delete project from project database
           - delete request role from cancel database
-    - #### Exit: exit from the program to get all the csv file
 
 
 - ### Student

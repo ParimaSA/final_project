@@ -961,7 +961,7 @@ class Student:
         input('Back to Menu(enter): ')
 
     def send_proposal(self):
-        if self.project.Advisor is None:  # can send proposal after have an advisor
+        if self.project.Advisor == '':  # can send proposal after have an advisor
             print('Your project does not have an advisor.')
         elif self.project.num_submit == 1:  # check if send the proposal before
             print('You have already send the project, waiting for your advisor to approve.')
@@ -996,7 +996,7 @@ class Student:
                 faculty = my_DB.search('faculty')
                 send_project = my_DB.search('send_project')
                 my_pro = self.project
-                if my_pro.Committee1 is None:  # check if first time of sending project
+                if my_pro.Committee1 == '':  # check if first time of sending project
                     all_faculty = [row.id for row in faculty.table if row.id != my_pro.Advisor]
                     commit_list = []
                     for _ in range(3):  # random the committees that not include this project advisor

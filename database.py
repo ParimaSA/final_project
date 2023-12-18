@@ -63,34 +63,6 @@ class Table:
                 filtered_table.table.append(item1)
         return filtered_table
 
-    def __is_float(self, element):
-        if element is None:
-            return False
-        try:
-            float(element)
-            return True
-        except ValueError:
-            return False
-
-    def aggregate(self, function, aggregation_key):
-        temps = []
-        for item1 in self.table:
-            if self.__is_float(item1[aggregation_key]):
-                temps.append(float(item1[aggregation_key]))
-            else:
-                temps.append(item1[aggregation_key])
-        return function(temps)
-
-    def select(self, attributes_list):
-        temps = []
-        for item1 in self.table:
-            dict_temp = {}
-            for key in item1:
-                if key in attributes_list:
-                    dict_temp[key] = item1[key]
-            temps.append(dict_temp)
-        return temps
-
     def update(self, filter_func, key, val):
         filter_table = self.filter(filter_func)
         if filter_table:

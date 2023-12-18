@@ -16,6 +16,14 @@ def read_csv(csv_name):
     return data
 
 
+def update_csv(file_name, key, list_of_dict):
+    file = open(file_name, 'w')
+    writer = csv.DictWriter(file, fieldnames=key)
+    writer.writeheader()
+    writer.writerows(list_of_dict)
+    file.close()
+
+
 # add in code for a Database class
 class Database:
     def __init__(self):

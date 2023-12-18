@@ -29,7 +29,7 @@
         - change detail in all file that have those detail
           - id = all database
           - name = login(username) + persons
-    - #### Check request 
+    - #### check request 
       - Sign up Account
         - check in pending_sign (status='waiting')
         - delete this sign up and log in from the database
@@ -42,6 +42,9 @@
           - clear lead. project = None
           - delete project from project database
           - delete request role from cancel database
+    - #### reset 
+      - login: change all role back to student and faculty
+      - delete all other csv file
 
 
 - ### Student

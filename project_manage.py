@@ -1,10 +1,9 @@
 # import database module
-import csv
 import os.path
 import random
 import sys
 
-from database import read_csv, Database, Table
+from database import read_csv, update_csv, Database, Table
 from random import randint
 
 
@@ -342,6 +341,7 @@ class Admin:
             print('2.Check Request: No request')
         else:
             print(f'2.Check Request: {self.num_request} request!')
+        print('3.Reset')
         print('0.Log Out')
         print('******************************')
         option = get_option('Your Option: ', [str(n) for n in range(0, 4)])
@@ -349,6 +349,8 @@ class Admin:
             self.edit_database()
         elif option == '2':
             self.admin_check_request()
+        elif option == '3':
+            self.reset()
         elif option == '0':
             update_and_exit()
         self.admin_menu()
@@ -652,6 +654,27 @@ class Admin:
                     break  # break after find and delete
             self.num_request -= 1  # subtract notification that just answer
         self.check_sign_up()
+
+    def reset(self):
+        option = get_option('Do you want to reset the program(y/n)? ', ['y', 'n'])
+        if option == 'y':
+            logins = my_DB.search('login')
+            logins.update(lambda x: x['role'] in ['student', 'member', 'lead'], 'role', 'student')
+            logins.update(lambda x: x['role'] in ['faculty', 'advisor'], 'role', 'faculty')
+            update_csv('login.csv', login_key, logins.table)
+            if os.path.exists('Student.csv'):
+                os.remove('Admin.csv')
+                os.remove('Student.csv')
+                os.remove('Faculty.csv')
+                os.remove('Pending_member.csv')
+                os.remove('Pending_advisor.csv')
+                os.remove('Project.csv')
+                os.remove('Send_proposal.csv')
+                os.remove('Send_project.csv')
+                os.remove('Sign_up.csv')
+            print('Successfully reset the program.')
+            sys.exit()
+        self.admin_menu()
 
 
 class Student:
@@ -1275,14 +1298,6 @@ class Faculty:
         self.faculty_check_request()
 
 
-def update_csv(file_name, key, list_of_dict):
-    file = open(file_name, 'w')
-    writer = csv.DictWriter(file, fieldnames=key)
-    writer.writeheader()
-    writer.writerows(list_of_dict)
-    file.close()
-
-
 def update_and_exit():
     persons = my_DB.search('persons')
     logins = my_DB.search('login')
@@ -1362,5 +1377,5 @@ def processing(val):
 
 
 initializing()
-val = login()
-processing(val)
+value = login()
+processing(value)

@@ -49,20 +49,45 @@
 <br/>
 
 ### How to compile
+    - open project_manage.py
     - run the program (1 person/time)
-    - enter username and password
+    - enter username and password in login.csv file
     - choose the option to perform that task
     - log out from the program
+
+##### Step to Approve the project
+1. Student create project and become Lead
+2. Lead request two more Member
+3. all Member accept the request
+4. Lead request an advisor
+5. Advisor accept request
+6. Lead send the proposal(project detail) to Advisor
+7. Advisor approve the proposal
+8. Lead send the project to three random committee (faculty/advisor that not involve in this project)
+9. all of the committees approve the project
+10. project is approved
+
+##### Change Role:
+  - STUDENT  =>  accept request  =>  MEMBER
+  - FACULTY  =>  accept request  =>  ADVISOR
+  - STUDENT  =>  create project  =>   LEAD
+  -   LEAD   =>  cancel project  =>  STUDENT
+
+##### Change password/ Sign up
+- if the username not in login.csv file
+  - the program will ask if you want to sign up
+  - enter needed information and waiting for the admin to approve
+  - during the process you can log in with username and password(id) to waiting room, checking if it is approved or not
+  - if admin approve, you will log in and see new password
+- if the username in login.csv file
+  - the program will ask if you forget the password
+  - enter needed information to check 
+  - get new password after enter correct information
 
 ##### Reset the program
 - login as an admin
 - choose option 3 to reset
 
-#### Change Role:
-  - STUDENT  =>  accept request  =>  MEMBER
-  - FACULTY  =>  accept request  =>  ADVISOR
-  - STUDENT  =>  create project  =>   LEAD
-  -   LEAD   =>  cancel project  =>  STUDENT
 
 <br/>
 
@@ -72,15 +97,15 @@
 |:-------:|----------------------------------------------|------------------------|:-------:|--------------------------:|
 |  Admin  | Menu                                         | admin_menu             |  Admin  |                      100% |
 |  Admin  | check database (sub-menu)                    | edit_database          |  Admin  |                      100% |
-|         | add data                                     | add_database           |  Admin  |                      100% |
-|         | delete data                                  | delete_database        |  Admin  |                       95% |
-|         | change data                                  | change_database        |  Admin  |                       90% |
-|         | (sub) update all file that involve with data | update_all             |  Admin  |                       90% |
-|  Admin  | check request                                | admin_check_request    |  Admin  |                      100% |
+|         | add data = add new account                   | add_database           |  Admin  |                      100% |
+|         | delete data = delete account                 | delete_database        |  Admin  |                      100% |
+|         | change data = change id/name                 | change_database        |  Admin  |                      100% |
+|         | (sub) update all file that involve with data | update_all             |  Admin  |                      100% |
+|  Admin  | check request (sub_menu)                     | admin_check_request    |  Admin  |                      100% |
 |         | check cancel request                         | check_cancel           |  Admin  |                      100% |
 |         | delete project                               | cancel_project         |  Admin  |                      100% |
 |         | check sign up request                        | check_sign_up          |  Admin  |                      100% |   
-|         | approve/deny sign up                         | answer_sign_up         |  Admin  |                      100% |
+|         | approve/deny sign up request                 | answer_sign_up         |  Admin  |                      100% |
 |  Admin  | reset program                                | reset                  |  Admin  |                      100% |
 |         |                                              |                        |         |                           |
 |         |                                              |                        |         |                           |
@@ -123,6 +148,10 @@
 
 <br/>
 
+### Outstanding Bug
+- I think there is none of the outstanding bug in the program to approve the project.
+- There is none of the case that will make program raise error, but there may be some of the mistake that I did not find out.
+
 ### Missing Feature
-- I think it should have more feature for advisor or committee to comment the project, make the member and lead know what to do
+- I think it should have more feature for advisor or committee to comment the project, make the member and lead know what to fix
 - More detail for the project ex. report 

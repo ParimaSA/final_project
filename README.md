@@ -58,6 +58,12 @@
 - login as an admin
 - choose option 3 to reset
 
+#### Change Role:
+  - STUDENT  =>  accept request  =>  MEMBER
+  - FACULTY  =>  accept request  =>  ADVISOR
+  - STUDENT  =>  create project  =>   LEAD
+  -   LEAD   =>  cancel project  =>  STUDENT
+
 <br/>
 
 ### Table detailing each role and its actions
@@ -114,3 +120,9 @@
 | Advisor | approve/deny the proposal                    | check_proposal         | Faculty |                      100% |
 |         |                                              |                        |         |                           |
 |         |                                              |                        |         |                           |
+
+<br/>
+
+### Missing Feature
+- I think it should have more feature for advisor or committee to comment the project, make the member and lead know what to do
+- More detail for the project ex. report 
